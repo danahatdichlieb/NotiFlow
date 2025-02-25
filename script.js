@@ -41,8 +41,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         element.style.width = "500px";   
         element.style.height = "300px"; 
-        
-  
         element.style.position = "absolute";
         element.style.top = "50%";
         element.style.left = "55%";
