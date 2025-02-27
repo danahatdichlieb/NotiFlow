@@ -1,29 +1,74 @@
 document.addEventListener("DOMContentLoaded", function () {
     const menuButton = document.querySelector(".menu-button");
     const menu = document.getElementById("menu");
-    const noteButton = document.querySelector(".menu-item:nth-child(2)"); 
-    const todoButton = document.querySelector(".menu-item:nth-child(1)"); 
-    
+    const noteButton = document.querySelector(".menu-item:nth-child(2)");
+    const todoButton = document.querySelector(".menu-item:nth-child(1)");
+
     menuButton.addEventListener("click", toggleMenu);
     noteButton.addEventListener("click", createNote);
     todoButton.addEventListener("click", createTodo);
 
-    createNormalCard();
+    checkAndCreateNormalCard();
 
     function toggleMenu() {
         menu.classList.toggle("active");
     }
 
     function createNote() {
-        removeNormalCard(); 
-        createFloatingElement("Notiz", "Neue Notiz", true);
-        hideMenu();  
+        removeNormalCard();
+        const noteElement = createFloatingElement("Notiz", "Neue Notiz", true);
+        hideMenu();
+
+        const noteContent = noteElement.querySelector(".card-content");
+        loadNotes(noteContent);
+        noteContent.addEventListener("input", () => {
+            saveNotes(noteContent.innerHTML);
+        });
+
+        makeDraggable(noteElement, noteElement.querySelector(".card-header"), "note");
+        makeResizable(noteElement, noteElement.querySelector(".card-resize"));
+        addDeleteButton(noteElement, "note");
+        loadPosition(noteElement, "note"); 
     }
 
     function createTodo() {
         removeNormalCard();
-        createFloatingElement("To-Do", "<ul class='todo-list'><li contenteditable='true'>Neue Aufgabe</li></ul>", false);
+        const todoElement = createFloatingElement("To-Do", "<ul class='todo-list'></ul>", false);
         hideMenu();
+
+        const todoList = todoElement.querySelector(".todo-list");
+        loadTodos(todoList);
+        todoList.addEventListener("input", () => {
+            saveTodos(todoList);
+        });
+
+        todoList.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const newTask = document.createElement("li");
+                newTask.contentEditable = "true";
+                newTask.textContent = "Neue Aufgabe";
+                newTask.addEventListener("input", () => saveTodos(todoList));
+                todoList.appendChild(newTask);
+                saveTodos(todoList);
+            }
+        });
+
+        makeDraggable(todoElement, todoElement.querySelector(".card-header"), "todo");
+        makeResizable(todoElement, todoElement.querySelector(".card-resize"));
+        addDeleteButton(todoElement, "todo");
+        loadPosition(todoElement, "todo");
+    }
+
+    function checkAndCreateNormalCard() {
+        const hasNotes = localStorage.getItem("notes");
+        const hasTodos = JSON.parse(localStorage.getItem("todos") || "[]").length > 0;
+
+        if (!hasNotes && !hasTodos) {
+            createNormalCard();
+        } else {
+            loadExistingNotesAndTodos();
+        }
     }
 
     function createNormalCard() {
@@ -31,7 +76,7 @@ document.addEventListener("DOMContentLoaded", function () {
         element.classList.add("floating-card", "normal-card");
         element.innerHTML = `<div class="card-header">Willkommen bei NotiFlow 👋</div>
                             <div class="card-content">
-                                <p>Über das "+" kannst du, Notizen und To-Do-Listen erstellen. 😀</p>
+                                <p>Über das "+" kannst du Notizen und To-Do-Listen erstellen. 😀</p>
                                 <p>Klicke einfach auf "Note" oder "To-Do", um loszulegen. 👈</p>
                                 <p>‎ </p>
                                 <p>‎ </p>
@@ -39,41 +84,96 @@ document.addEventListener("DOMContentLoaded", function () {
                             </div>
                             <div class="card-resize"></div>`;
 
-        element.style.width = "500px";   
-        element.style.height = "300px"; 
-        element.style.position = "absolute";
-        element.style.top = "50%";
-        element.style.left = "55%";
-        element.style.transform = "translate(-50%, -50%)"; 
-
         document.body.appendChild(element);
-
-        makeDraggable(element, element.querySelector(".card-header"));
-        makeResizable(element, element.querySelector(".card-resize"));
     }
 
     function removeNormalCard() {
         const normalCard = document.querySelector(".normal-card");
         if (normalCard) {
-            normalCard.remove();  
+            normalCard.remove();
         }
     }
 
     function createFloatingElement(title, content, isEditable) {
         const element = document.createElement("div");
         element.classList.add("floating-card");
-        element.innerHTML = `<div class="card-header">${title}</div><div class="card-content" contenteditable="${isEditable}">${content}</div><div class="card-resize"></div>`;
+        element.innerHTML = `<div class="card-header">${title}<span class="delete-btn">❌</span></div>
+                             <div class="card-content" contenteditable="${isEditable}">${content}</div>
+                             <div class="card-resize"></div>`;
+
         document.body.appendChild(element);
 
-        makeDraggable(element, element.querySelector(".card-header"));
-        makeResizable(element, element.querySelector(".card-resize"));
+        return element;
     }
 
     function hideMenu() {
-        menu.classList.remove("active"); 
+        menu.classList.remove("active");
     }
 
-    function makeDraggable(element, handle) {
+    function saveNotes(content) {
+        localStorage.setItem("notes", content);
+    }
+
+    function loadNotes(noteContent) {
+        const savedNotes = localStorage.getItem("notes") || "Neue Notiz";
+        noteContent.innerHTML = savedNotes;
+    }
+
+    function saveTodos(todoList) {
+        const todos = [];
+        todoList.querySelectorAll("li").forEach(li => {
+            todos.push(li.textContent.trim());
+        });
+        localStorage.setItem("todos", JSON.stringify(todos));
+    }
+
+    function loadTodos(todoList) {
+        const todos = JSON.parse(localStorage.getItem("todos") || "[]");
+        todoList.innerHTML = "";
+
+        todos.forEach(todo => {
+            const li = document.createElement("li");
+            li.contentEditable = "true";
+            li.textContent = todo;
+            li.addEventListener("input", () => saveTodos(todoList));
+            todoList.appendChild(li);
+        });
+
+        if (todos.length === 0) {
+            const newTask = document.createElement("li");
+            newTask.contentEditable = "true";
+            newTask.textContent = "Neue Aufgabe";
+            newTask.addEventListener("input", () => saveTodos(todoList));
+            todoList.appendChild(newTask);
+        }
+    }
+
+    function loadExistingNotesAndTodos() {
+        const hasNotes = localStorage.getItem("notes");
+        const hasTodos = JSON.parse(localStorage.getItem("todos") || "[]").length > 0;
+
+        if (hasNotes) {
+            createNote();
+        }
+
+        if (hasTodos) {
+            createTodo();
+        }
+    }
+
+    function addDeleteButton(element, type) {
+        const deleteButton = element.querySelector(".delete-btn");
+        deleteButton.addEventListener("click", () => {
+            element.remove();
+            if (type === "note") {
+                localStorage.removeItem("notes");
+            } else if (type === "todo") {
+                localStorage.removeItem("todos");
+            }
+        });
+    }
+
+    function makeDraggable(element, handle, type) {
         let offsetX, offsetY, isDragging = false;
 
         handle.addEventListener("mousedown", (e) => {
@@ -93,6 +193,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         document.addEventListener("mouseup", () => {
             isDragging = false;
+            savePosition(element, type);
         });
     }
 
@@ -114,5 +215,21 @@ document.addEventListener("DOMContentLoaded", function () {
         document.addEventListener("mouseup", () => {
             isResizing = false;
         });
+    }
+
+    function savePosition(element, type) {
+        const id = type === "note" ? "note-position" : "todo-position";
+        const position = {
+            top: element.style.top,
+            left: element.style.left
+        };
+        localStorage.setItem(id, JSON.stringify(position));
+    }
+
+    function loadPosition(element, type) {
+        const id = type === "note" ? "note-position" : "todo-position";
+        const savedPosition = JSON.parse(localStorage.getItem(id)) || { top: "50%", left: "50%" };
+        element.style.top = savedPosition.top;
+        element.style.left = savedPosition.left;
     }
 });
